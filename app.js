@@ -3,7 +3,10 @@
 require("dotenv").config();
 
 // ℹ️ Connects to the database
-require("./db");
+require("./db/index");
+
+// Importamos los modelos
+require("./models/User.model");
 
 // Handles http requests (express is node js framework)
 // https://www.npmjs.com/package/express
