@@ -1,6 +1,9 @@
 const express = require("express");
 const router = express.Router();
 
+// Importa la librería validator para una validación más precisa de emails
+const validator = require("validator");
+
 // ℹ️ Handles password encryption
 const bcrypt = require("bcrypt");
 
@@ -26,9 +29,15 @@ router.post("/signup", (req, res, next) => {
     return;
   }
 
-  // This regular expression check that the email is of a valid format
+  // This regular expression check that the email is of a valid format | Validación básica con regex
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
   if (!emailRegex.test(email)) {
+    res.status(400).json({ message: "Provide a valid email address." });
+    return;
+  }
+
+  // Validación precisa con validator
+  if (!validator.isEmail(email)) {
     res.status(400).json({ message: "Provide a valid email address." });
     return;
   }
