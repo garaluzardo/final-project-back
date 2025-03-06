@@ -6,6 +6,9 @@ require("dotenv").config();
 require("./db/index");
 
 // Importamos los modelos
+require("./models/Animal.model");
+require("./models/Shelter.model");
+require("./models/Task.model");
 require("./models/User.model");
 
 // Handles http requests (express is node js framework)
@@ -23,6 +26,11 @@ app.use("/api", indexRoutes);
 
 const authRoutes = require("./routes/auth.routes");
 app.use("/auth", authRoutes);
+
+const userRoutes = require("./routes/user.routes"); 
+app.use("/api/users", userRoutes); 
+
+
 
 // ❗ To handle errors. Routes that don't exist or errors that you handle in specific routes
 require("./error-handling")(app);
