@@ -12,6 +12,23 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Ruta para obtener una tarea específica por su id
+router.get("/:id", async (req, res) => {
+    const { id } = req.params; // Obtenemos el id desde la URL
+  
+    try {
+      const task = await Task.findById(id); // Buscamos la tarea por su id
+      if (!task) {
+        return res.status(404).json({ message: "Tarea no encontrada" });
+      }
+      res.json(task); // Respondemos con la tarea encontrada
+    } catch (error) {
+      res
+      .status(500)
+      .json({ message: "Error obteniendo la tarea", error: error.message });
+    }
+  });
+
 // Ruta para crear una nueva tarea
 router.post("/", async (req, res) => {
   const { title, description } = req.body; // Recibimos los datos del body
@@ -21,22 +38,9 @@ router.post("/", async (req, res) => {
     await newTask.save(); // Guardamos la tarea en la base de datos
     res.status(201).json(newTask); // Respondemos con la tarea creada
   } catch (error) {
-    res.status(500).json({ message: "Error creando la tarea", error: error.message });
-  }
-});
-
-// Ruta para obtener una tarea específica por su id
-router.get("/:id", async (req, res) => {
-  const { id } = req.params; // Obtenemos el id desde la URL
-
-  try {
-    const task = await Task.findById(id); // Buscamos la tarea por su id
-    if (!task) {
-      return res.status(404).json({ message: "Tarea no encontrada" });
-    }
-    res.json(task); // Respondemos con la tarea encontrada
-  } catch (error) {
-    res.status(500).json({ message: "Error obteniendo la tarea", error: error.message });
+    res
+    .status(500)
+    .json({ message: "Error creando la tarea", error: error.message });
   }
 });
 
@@ -54,9 +58,11 @@ router.put("/:id", async (req, res) => {
     if (!updatedTask) {
       return res.status(404).json({ message: "Tarea no encontrada" });
     }
-    res.json(updatedTask); // Respondemos con la tarea actualizada
+    res.status(200).json(updatedTask); // Respondemos con la tarea actualizada
   } catch (error) {
-    res.status(500).json({ message: "Error actualizando la tarea", error: error.message });
+    res
+    .status(500)
+    .json({ message: "Error actualizando la tarea", error: error.message });
   }
 });
 
@@ -71,7 +77,9 @@ router.delete("/:id", async (req, res) => {
     }
     res.json({ message: "Tarea eliminada" }); // Respondemos confirmando la eliminación
   } catch (error) {
-    res.status(500).json({ message: "Error eliminando la tarea", error: error.message });
+    res
+    .status(500)
+    .json({ message: "Error eliminando la tarea", error: error.message });
   }
 });
 

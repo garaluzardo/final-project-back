@@ -72,25 +72,6 @@ router.put("/:id", async (req, res) => {
 
 // Ruta para eliminar un usuario
 router.delete("/:id", async (req, res) => {
-  const userId = req.params.id;
-
-  try {
-    const deletedUser = await User.findByIdAndDelete(userId);
-
-    if (!deletedUser) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
-    }
-
-    res.json({ message: "Usuario eliminado correctamente" });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error al eliminar el usuario", error: error.message });
-  }
-});
-
-// Ruta para eliminar un usuario
-router.delete("/:id", async (req, res) => {
   const { id } = req.params; // Obtener el ID desde la URL
 
   try {
