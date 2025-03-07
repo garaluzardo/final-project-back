@@ -27,6 +27,9 @@ app.use("/api", indexRoutes);
 const authRoutes = require("./routes/auth.routes");
 app.use("/auth", authRoutes);
 
+const animalRoutes = require("./routes/animal.routes"); 
+app.use("/api/animals", animalRoutes);
+
 const shelterRoutes = require("./routes/shelter.routes"); 
 app.use("/api/shelters", shelterRoutes);
 
