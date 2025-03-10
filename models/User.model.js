@@ -63,9 +63,6 @@ const userSchema = new Schema(
   }
 );
 
-// Create index for handle to optimize queries
-userSchema.index({ handle: 1 });
-
 const User = model("User", userSchema);
 
 module.exports = User;

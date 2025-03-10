@@ -97,6 +97,43 @@ router.post("/", async (req, res) => {
   }
 });
 
+// Ruta para actualizar parcialmente un usuario (requiere autenticación)
+router.patch("/:id", isAuthenticated, async (req, res) => {
+  const { id } = req.params;
+  const updateFields = req.body; // Todos los campos enviados en la solicitud
+  
+  // Verificar que el usuario solo pueda actualizar su propio perfil
+  if (req.payload._id !== id) {
+    return res.status(403).json({ message: "You can only update your own profile" });
+  }
+
+  try {
+    // Si se está actualizando el handle, verificar que no exista
+    if (updateFields.handle) {
+      const existingHandle = await User.findOne({ handle: updateFields.handle, _id: { $ne: id } });
+      if (existingHandle) {
+        return res.status(400).json({ message: "Handle already in use. Please choose another one." });
+      }
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { $set: updateFields }, // Usar $set para actualizar solo los campos proporcionados
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error updating the user", error: error.message });
+  }
+});
+
 // Ruta para actualizar un usuario (requiere autenticación)
 router.put("/:id", isAuthenticated, async (req, res) => {
   const { id } = req.params;
