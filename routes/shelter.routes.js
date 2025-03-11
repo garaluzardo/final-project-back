@@ -2,7 +2,13 @@ const express = require("express");
 const router = express.Router();
 const Shelter = require("../models/Shelter.model");
 const User = require("../models/User.model");
+const Task = require("../models/Task.model");
+const Animal = require("../models/Animal.model");
 const { isAuthenticated } = require("../middleware/jwt.middleware");
+
+//==============================================================================
+// RUTAS ESTÁTICAS (sin parámetros dinámicos)
+//==============================================================================
 
 // Ruta para obtener todas las protectoras (público)
 router.get("/", async (req, res) => {
@@ -19,70 +25,6 @@ router.get("/", async (req, res) => {
       .status(500)
       .json({
         message: "Error obteniendo las protectoras",
-        error: error.message,
-      });
-  }
-});
-
-// Ruta para obtener una protectora específica por su id (público)
-router.get("/:id", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const shelter = await Shelter.findById(id)
-      .populate("admins", "name username imageUrl")
-      .populate("volunteers", "name username imageUrl")
-      .populate("animals")
-      .populate({
-        path: "tasks",
-        populate: {
-          path: "completedBy",
-          select: "name username imageUrl",
-        },
-      });
-
-    if (!shelter) {
-      return res.status(404).json({ message: "Protectora no encontrada" });
-    }
-
-    res.json(shelter);
-  } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Error obteniendo la protectora",
-        error: error.message,
-      });
-  }
-});
-
-// Ruta para obtener una protectora por su handle (público)
-router.get("/handle/:handle", async (req, res) => {
-  const { handle } = req.params;
-
-  try {
-    const shelter = await Shelter.findOne({ handle })
-      .populate("admins", "name username imageUrl")
-      .populate("volunteers", "name username imageUrl")
-      .populate("animals")
-      .populate({
-        path: "tasks",
-        populate: {
-          path: "completedBy",
-          select: "name username imageUrl",
-        },
-      });
-
-    if (!shelter) {
-      return res.status(404).json({ message: "Protectora no encontrada" });
-    }
-
-    res.json(shelter);
-  } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Error obteniendo la protectora",
         error: error.message,
       });
   }
@@ -159,108 +101,189 @@ router.post("/", isAuthenticated, async (req, res) => {
   }
 });
 
-// Ruta para actualizar una protectora (solo administradores)
-router.put("/:id", isAuthenticated, async (req, res) => {
-  const { id } = req.params;
-  const userId = req.payload._id;
-  const { name, handle, bio, imageUrl, location, contact, socialMedia } =
-    req.body;
+// Ruta para búsqueda de protectoras
+router.get("/search", async (req, res) => {
+  try {
+    // Extraer parámetros de búsqueda de la query
+    const {
+      query,         // Búsqueda general (nombre o handle)
+      municipality,  // Municipio específico
+      province,      // Provincia específica
+      postalCode,    // Código postal
+      island         // Isla específica
+    } = req.query;
+
+    // Construir el objeto de filtro
+    const filter = {};
+
+    // Filtro por nombre o handle
+    if (query) {
+      filter.$or = [
+        { name: new RegExp(query, 'i') },
+        { handle: new RegExp(query, 'i') }
+      ];
+    }
+
+    // Filtros específicos de ubicación
+    if (municipality) {
+      filter['location.municipality'] = new RegExp(municipality, 'i');
+    }
+
+    if (province) {
+      filter['location.province'] = new RegExp(province, 'i');
+    }
+
+    if (postalCode) {
+      filter['location.postalCode'] = postalCode;
+    }
+
+    if (island) {
+      filter['location.island'] = new RegExp(island, 'i');
+    }
+
+    // Realizar la búsqueda
+    const shelters = await Shelter.find(filter)
+      .populate('admins', 'name handle profilePicture')
+      .sort({ name: 1 });
+
+    res.json(shelters);
+  } catch (error) {
+    console.error("Error en la búsqueda de protectoras:", error);
+    res.status(500).json({ 
+      message: "Error en la búsqueda de protectoras", 
+      error: error.message 
+    });
+  }
+});
+
+//==============================================================================
+// RUTAS CON PARÁMETROS ESPECÍFICOS (handle/:handle)
+//==============================================================================
+
+// Ruta para obtener una protectora por su handle (público)
+router.get("/handle/:handle", async (req, res) => {
+  const { handle } = req.params;
 
   try {
-    // Verificar si el usuario es administrador de esta protectora
-    const shelter = await Shelter.findById(id);
+    const shelter = await Shelter.findOne({ handle })
+      .populate("admins", "name username imageUrl")
+      .populate("volunteers", "name username imageUrl")
+      .populate("animals")
+      .populate({
+        path: "tasks",
+        populate: {
+          path: "completedBy",
+          select: "name username imageUrl",
+        },
+      });
+
     if (!shelter) {
       return res.status(404).json({ message: "Protectora no encontrada" });
     }
 
-    if (!shelter.admins.includes(userId)) {
-      return res
-        .status(403)
-        .json({ message: "No tienes permisos para editar esta protectora" });
-    }
-
-    // Verificar si el nuevo handle ya existe (solo si se está cambiando)
-    if (handle !== shelter.handle) {
-      const existingHandle = await Shelter.findOne({ handle });
-      if (existingHandle) {
-        return res
-          .status(400)
-          .json({
-            message: "El handle ya está en uso. Por favor, elige otro.",
-          });
-      }
-    }
-
-    const updatedShelter = await Shelter.findByIdAndUpdate(
-      id,
-      {
-        name,
-        handle,
-        bio,
-        imageUrl,
-        location,
-        contact,
-        socialMedia,
-      },
-      { new: true }
-    )
-      .populate("admins", "name username imageUrl")
-      .populate("volunteers", "name username imageUrl");
-
-    res.status(200).json(updatedShelter);
+    res.json(shelter);
   } catch (error) {
     res
       .status(500)
       .json({
-        message: "Error actualizando la protectora",
+        message: "Error obteniendo la protectora",
         error: error.message,
       });
   }
 });
 
-// Ruta para eliminar una protectora (solo administradores)
-router.delete("/:id", isAuthenticated, async (req, res) => {
+//==============================================================================
+// RUTAS DE RECURSOS ANIDADOS Y OPERACIONES ESPECÍFICAS (/:id/resource)
+//==============================================================================
+
+// Obtener lista de tareas de una protectora
+router.get("/:id/tasks", async (req, res) => {
   const { id } = req.params;
-  const userId = req.payload._id;
 
   try {
-    // Verificar si el usuario es administrador de esta protectora
-    const shelter = await Shelter.findById(id);
+    const shelter = await Shelter.findById(id).populate({
+      path: "tasks",
+      populate: {
+        path: "completedBy",
+        select: "name username imageUrl",
+      },
+    });
+
     if (!shelter) {
       return res.status(404).json({ message: "Protectora no encontrada" });
     }
 
-    if (!shelter.admins.includes(userId)) {
-      return res
-        .status(403)
-        .json({ message: "No tienes permisos para eliminar esta protectora" });
+    res.json(shelter.tasks);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error obteniendo tareas", error: error.message });
+  }
+});
+
+// Obtener lista de animales de una protectora
+router.get("/:id/animals", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const shelter = await Shelter.findById(id).populate("animals");
+
+    if (!shelter) {
+      return res.status(404).json({ message: "Protectora no encontrada" });
     }
 
-    // Eliminar la protectora
-    await Shelter.findByIdAndDelete(id);
+    res.json(shelter.animals);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error obteniendo animales", error: error.message });
+  }
+});
 
-    // Eliminar la referencia de la protectora en todos los usuarios
-    await User.updateMany(
-      { $or: [{ ownedShelters: id }, { joinedShelters: id }] },
-      {
-        $pull: {
-          ownedShelters: id,
-          joinedShelters: id,
-        },
-      }
+// Obtener lista de administradores de una protectora
+router.get("/:id/admins", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const shelter = await Shelter.findById(id).populate(
+      "admins",
+      "name username imageUrl"
     );
 
-    // También deberíamos eliminar las tareas y posiblemente los animales asociados
-    // (esto depende de tus requisitos específicos)
+    if (!shelter) {
+      return res.status(404).json({ message: "Protectora no encontrada" });
+    }
 
-    res.json({ message: "Protectora eliminada correctamente" });
+    res.json(shelter.admins);
   } catch (error) {
     res
       .status(500)
       .json({
-        message: "Error eliminando la protectora",
+        message: "Error obteniendo administradores",
         error: error.message,
       });
+  }
+});
+
+// Obtener lista de voluntarios de una protectora
+router.get("/:id/volunteers", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const shelter = await Shelter.findById(id).populate(
+      "volunteers",
+      "name username imageUrl"
+    );
+
+    if (!shelter) {
+      return res.status(404).json({ message: "Protectora no encontrada" });
+    }
+
+    res.json(shelter.volunteers);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error obteniendo voluntarios", error: error.message });
   }
 });
 
@@ -484,94 +507,155 @@ router.delete("/:id/admins/:userId", isAuthenticated, async (req, res) => {
   }
 });
 
-// Obtener lista de tareas de una protectora
-router.get("/:id/tasks", async (req, res) => {
+//==============================================================================
+// RUTAS CRUD BÁSICAS CON PARÁMETROS DINÁMICOS GENERALES (/:id)
+//==============================================================================
+
+// Ruta para obtener una protectora específica por su id (público)
+router.get("/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    const shelter = await Shelter.findById(id).populate({
-      path: "tasks",
-      populate: {
-        path: "completedBy",
-        select: "name username imageUrl",
-      },
-    });
+    const shelter = await Shelter.findById(id)
+      .populate("admins", "name username imageUrl")
+      .populate("volunteers", "name username imageUrl")
+      .populate("animals")
+      .populate({
+        path: "tasks",
+        populate: {
+          path: "completedBy",
+          select: "name username imageUrl",
+        },
+      });
 
     if (!shelter) {
       return res.status(404).json({ message: "Protectora no encontrada" });
     }
 
-    res.json(shelter.tasks);
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error obteniendo tareas", error: error.message });
-  }
-});
-
-// Obtener lista de animales de una protectora
-router.get("/:id/animals", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const shelter = await Shelter.findById(id).populate("animals");
-
-    if (!shelter) {
-      return res.status(404).json({ message: "Protectora no encontrada" });
-    }
-
-    res.json(shelter.animals);
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error obteniendo animales", error: error.message });
-  }
-});
-
-// Obtener lista de administradores de una protectora
-router.get("/:id/admins", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const shelter = await Shelter.findById(id).populate(
-      "admins",
-      "name username imageUrl"
-    );
-
-    if (!shelter) {
-      return res.status(404).json({ message: "Protectora no encontrada" });
-    }
-
-    res.json(shelter.admins);
+    res.json(shelter);
   } catch (error) {
     res
       .status(500)
       .json({
-        message: "Error obteniendo administradores",
+        message: "Error obteniendo la protectora",
         error: error.message,
       });
   }
 });
 
-// Obtener lista de voluntarios de una protectora
-router.get("/:id/volunteers", async (req, res) => {
+// Ruta para actualizar una protectora (solo administradores)
+router.put("/:id", isAuthenticated, async (req, res) => {
   const { id } = req.params;
+  const userId = req.payload._id;
+  const { name, handle, bio, imageUrl, location, contact, socialMedia } =
+    req.body;
 
   try {
-    const shelter = await Shelter.findById(id).populate(
-      "volunteers",
-      "name username imageUrl"
-    );
-
+    // Verificar si el usuario es administrador de esta protectora
+    const shelter = await Shelter.findById(id);
     if (!shelter) {
       return res.status(404).json({ message: "Protectora no encontrada" });
     }
 
-    res.json(shelter.volunteers);
+    if (!shelter.admins.includes(userId)) {
+      return res
+        .status(403)
+        .json({ message: "No tienes permisos para editar esta protectora" });
+    }
+
+    // Verificar si el nuevo handle ya existe (solo si se está cambiando)
+    if (handle !== shelter.handle) {
+      const existingHandle = await Shelter.findOne({ handle });
+      if (existingHandle) {
+        return res
+          .status(400)
+          .json({
+            message: "El handle ya está en uso. Por favor, elige otro.",
+          });
+      }
+    }
+
+    const updatedShelter = await Shelter.findByIdAndUpdate(
+      id,
+      {
+        name,
+        handle,
+        bio,
+        imageUrl,
+        location,
+        contact,
+        socialMedia,
+      },
+      { new: true }
+    )
+      .populate("admins", "name username imageUrl")
+      .populate("volunteers", "name username imageUrl");
+
+    res.status(200).json(updatedShelter);
   } catch (error) {
     res
       .status(500)
-      .json({ message: "Error obteniendo voluntarios", error: error.message });
+      .json({
+        message: "Error actualizando la protectora",
+        error: error.message,
+      });
+  }
+});
+
+// Ruta para eliminar una protectora (solo administradores)
+router.delete("/:id", isAuthenticated, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.payload._id;
+
+  try {
+    // Verificar si el usuario es administrador de esta protectora
+    const shelter = await Shelter.findById(id);
+    if (!shelter) {
+      return res.status(404).json({ message: "Protectora no encontrada" });
+    }
+
+    if (!shelter.admins.includes(userId)) {
+      return res
+        .status(403)
+        .json({ message: "No tienes permisos para eliminar esta protectora" });
+    }
+
+    // 1. Eliminar todas las tareas asociadas a la protectora
+    if (shelter.tasks && shelter.tasks.length > 0) {
+      await Task.deleteMany({ _id: { $in: shelter.tasks } });
+    }
+
+    // 2. Eliminar todos los animales asociados a la protectora
+    if (shelter.animals && shelter.animals.length > 0) {
+      await Animal.deleteMany({ _id: { $in: shelter.animals } });
+    }
+
+    // 3. Eliminar la protectora
+    await Shelter.findByIdAndDelete(id);
+
+    // 4. Eliminar la referencia de la protectora en todos los usuarios
+    await User.updateMany(
+      { $or: [{ ownedShelters: id }, { joinedShelters: id }] },
+      {
+        $pull: {
+          ownedShelters: id,
+          joinedShelters: id,
+        },
+      }
+    );
+
+    res.json({ 
+      message: "Protectora, sus animales y tareas han sido eliminados correctamente",
+      deletedAnimals: shelter.animals?.length || 0,
+      deletedTasks: shelter.tasks?.length || 0 
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({
+        message: "Error eliminando la protectora",
+        error: error.message,
+      });
   }
 });
 

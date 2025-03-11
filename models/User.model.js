@@ -1,6 +1,5 @@
 const { Schema, model } = require("mongoose");
 
-// TODO: Please make sure you edit the User model to whatever makes sense in this case
 const userSchema = new Schema(
   {
     email: {
@@ -13,7 +12,7 @@ const userSchema = new Schema(
     password: {
       type: String,
       required: [true, "Password is required."],
-      minlength: [6, "Password must be at least 6 characters long."],
+      minlength: [6, "Password must be at least 6 characters long and contain at least one number, one lowercase and one uppercase letter."],
     },
     name: {
       type: String,
@@ -24,6 +23,7 @@ const userSchema = new Schema(
       required: [true, "Handle is required."],
       unique: true,
       trim: true,
+      lowercase: true, // Asegura unicidad independiente de mayúsculas/minúsculas
       maxlength: [15, "Handle cannot be more than 15 characters long."],
       match: [/^[a-zA-Z0-9_.]+$/, "Handle can only contain letters, numbers, underscores and dots."],
     },
@@ -36,11 +36,35 @@ const userSchema = new Schema(
       type: String,
       default: "",
     },
+    // Estructura para location - solo informativa, no para búsquedas
     location: {
-      type: String,
-      default: "",
+      city: { 
+        type: String,
+        default: "",
+        trim: true
+      },
+      municipality: { 
+        type: String,
+        default: "",
+        trim: true
+      },
+      province: { 
+        type: String,
+        default: "",
+        trim: true
+      },
+      island: { 
+        type: String,
+        default: "",
+        trim: true
+      },
+      postalCode: { 
+        type: String,
+        default: "",
+        trim: true
+      }
     },
-    // References to other collections
+    // Referencias a otras colecciones
     ownedShelters: [{
       type: Schema.Types.ObjectId,
       ref: "Shelter"
@@ -49,19 +73,24 @@ const userSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Shelter"
     }],
+    // Tareas en las que el usuario está involucrado
     completedTasks: [{
       type: Schema.Types.ObjectId,
       ref: "Task"
     }],
-    // Role information can be derived from shelter memberships
-    // Admin status is determined by being in the admins array of a shelter
-    // Volunteer status is determined by being in the volunteers array of a shelter
+    createdTasks: [{
+      type: Schema.Types.ObjectId,
+      ref: "Task"
+    }]
   },
   {
-    // This adds `createdAt` and `updatedAt` properties
     timestamps: true,
   }
 );
+
+// Índices para búsquedas eficientes - solo los esenciales
+userSchema.index({ handle: 1 }, { unique: true });
+userSchema.index({ email: 1 }, { unique: true });
 
 const User = model("User", userSchema);
 
