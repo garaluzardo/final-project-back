@@ -33,6 +33,9 @@ app.use("/api/animals", animalRoutes);
 const shelterRoutes = require("./routes/shelter.routes"); 
 app.use("/api/shelters", shelterRoutes);
 
+const statsRoutes = require("./routes/stats.routes"); // LandingCounter
+app.use("/api/stats", statsRoutes);
+
 const taskRoutes = require("./routes/task.routes"); 
 app.use("/api/tasks", taskRoutes); 
 
