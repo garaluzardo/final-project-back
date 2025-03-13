@@ -5,6 +5,11 @@ const User = require("../models/User.model");
 const Task = require("../models/Task.model");
 const Animal = require("../models/Animal.model");
 const { isAuthenticated } = require("../middleware/jwt.middleware");
+const { 
+  getShelterContext, 
+  requireShelterAdmin,
+  loadShelter
+} = require("../middleware/permissions.middleware");
 
 //==============================================================================
 // RUTAS ESTÁTICAS (sin parámetros dinámicos)
@@ -36,19 +41,14 @@ router.post("/", isAuthenticated, async (req, res) => {
     req.body;
 
   try {
-    console.log("Datos recibidos:", req.body);
-    console.log("Usuario autenticado:", req.payload);
-
     // Verificar que req.payload._id existe
     if (!req.payload || !req.payload._id) {
-      console.error("Payload inválido:", req.payload);
       return res
         .status(400)
         .json({ message: "Información de autenticación inválida" });
     }
 
     const userId = req.payload._id;
-    console.log("ID de usuario:", userId);
 
     // Verificar si el handle ya existe
     const existingShelter = await Shelter.findOne({ handle });
@@ -73,12 +73,8 @@ router.post("/", isAuthenticated, async (req, res) => {
       tasks: [],
     };
 
-    console.log("Datos de la protectora a crear:", shelterData);
-
     const newShelter = new Shelter(shelterData);
     await newShelter.save();
-
-    console.log("Protectora creada:", newShelter);
 
     // Añadir la referencia a la protectora en el usuario
     await User.findByIdAndUpdate(userId, {
@@ -94,7 +90,6 @@ router.post("/", isAuthenticated, async (req, res) => {
     res.status(201).json(populatedShelter);
   } catch (error) {
     console.error("Error detallado al crear la protectora:", error);
-    console.error("Stack del error:", error.stack);
     res
       .status(500)
       .json({ message: "Error creando la protectora", error: error.message });
@@ -287,18 +282,15 @@ router.get("/:id/volunteers", async (req, res) => {
   }
 });
 
+// El middleware loadShelter ahora se importa desde permissions.middleware.js
+
 // Ruta para unirse a una protectora como voluntario (requiere autenticación)
-router.post("/:id/join", isAuthenticated, async (req, res) => {
-  const { id } = req.params;
+router.post("/:id/join", isAuthenticated, loadShelter, async (req, res) => {
+  const shelterId = req.shelter.id;
   const userId = req.payload._id;
+  const shelter = req.shelter.data;
 
   try {
-    // Verificar si la protectora existe
-    const shelter = await Shelter.findById(id);
-    if (!shelter) {
-      return res.status(404).json({ message: "Protectora no encontrada" });
-    }
-
     // Verificar si el usuario ya es administrador (no puede ser voluntario y admin)
     if (shelter.admins.includes(userId)) {
       return res
@@ -315,7 +307,7 @@ router.post("/:id/join", isAuthenticated, async (req, res) => {
 
     // Añadir usuario como voluntario
     const updatedShelter = await Shelter.findByIdAndUpdate(
-      id,
+      shelterId,
       { $push: { volunteers: userId } },
       { new: true }
     )
@@ -323,7 +315,7 @@ router.post("/:id/join", isAuthenticated, async (req, res) => {
       .populate("volunteers", "name username imageUrl");
 
     // Añadir la referencia de la protectora al usuario
-    await User.findByIdAndUpdate(userId, { $push: { joinedShelters: id } });
+    await User.findByIdAndUpdate(userId, { $push: { joinedShelters: shelterId } });
 
     res.json(updatedShelter);
   } catch (error) {
@@ -337,17 +329,12 @@ router.post("/:id/join", isAuthenticated, async (req, res) => {
 });
 
 // Ruta para abandonar una protectora (solo voluntarios)
-router.post("/:id/leave", isAuthenticated, async (req, res) => {
-  const { id } = req.params;
+router.post("/:id/leave", isAuthenticated, loadShelter, async (req, res) => {
+  const shelterId = req.shelter.id;
   const userId = req.payload._id;
+  const shelter = req.shelter.data;
 
   try {
-    // Verificar si la protectora existe
-    const shelter = await Shelter.findById(id);
-    if (!shelter) {
-      return res.status(404).json({ message: "Protectora no encontrada" });
-    }
-
     // Verificar si el usuario es administrador (no puede abandonar si es admin)
     if (shelter.admins.includes(userId)) {
       return res
@@ -367,7 +354,7 @@ router.post("/:id/leave", isAuthenticated, async (req, res) => {
 
     // Eliminar usuario de la lista de voluntarios
     const updatedShelter = await Shelter.findByIdAndUpdate(
-      id,
+      shelterId,
       { $pull: { volunteers: userId } },
       { new: true }
     )
@@ -375,7 +362,7 @@ router.post("/:id/leave", isAuthenticated, async (req, res) => {
       .populate("volunteers", "name username imageUrl");
 
     // Eliminar la referencia de la protectora del usuario
-    await User.findByIdAndUpdate(userId, { $pull: { joinedShelters: id } });
+    await User.findByIdAndUpdate(userId, { $pull: { joinedShelters: shelterId } });
 
     res.json(updatedShelter);
   } catch (error) {
@@ -389,24 +376,11 @@ router.post("/:id/leave", isAuthenticated, async (req, res) => {
 });
 
 // Ruta para añadir un administrador (solo administradores)
-router.post("/:id/admins/:userId", isAuthenticated, async (req, res) => {
-  const { id, userId: newAdminId } = req.params;
-  const requestingUserId = req.payload._id;
+router.post("/:id/admins/:userId", isAuthenticated, loadShelter, getShelterContext, requireShelterAdmin, async (req, res) => {
+  const shelterId = req.shelter.id;
+  const { userId: newAdminId } = req.params;
 
   try {
-    // Verificar si la protectora existe
-    const shelter = await Shelter.findById(id);
-    if (!shelter) {
-      return res.status(404).json({ message: "Protectora no encontrada" });
-    }
-
-    // Verificar si el usuario que hace la solicitud es administrador
-    if (!shelter.admins.includes(requestingUserId)) {
-      return res
-        .status(403)
-        .json({ message: "No tienes permisos para añadir administradores" });
-    }
-
     // Verificar si el usuario a añadir existe
     const userToAdd = await User.findById(newAdminId);
     if (!userToAdd) {
@@ -414,7 +388,7 @@ router.post("/:id/admins/:userId", isAuthenticated, async (req, res) => {
     }
 
     // Si el usuario ya es admin, no hacer nada
-    if (shelter.admins.includes(newAdminId)) {
+    if (req.shelter.data.admins.includes(newAdminId)) {
       return res
         .status(400)
         .json({ message: "El usuario ya es administrador" });
@@ -422,12 +396,12 @@ router.post("/:id/admins/:userId", isAuthenticated, async (req, res) => {
 
     // Si el usuario es voluntario, quitarlo de esa lista
     let update = { $push: { admins: newAdminId } };
-    if (shelter.volunteers.includes(newAdminId)) {
+    if (req.shelter.data.volunteers.includes(newAdminId)) {
       update.$pull = { volunteers: newAdminId };
     }
 
     // Añadir el usuario como administrador
-    const updatedShelter = await Shelter.findByIdAndUpdate(id, update, {
+    const updatedShelter = await Shelter.findByIdAndUpdate(shelterId, update, {
       new: true,
     })
       .populate("admins", "name username imageUrl")
@@ -435,8 +409,8 @@ router.post("/:id/admins/:userId", isAuthenticated, async (req, res) => {
 
     // Actualizar referencias en el usuario
     await User.findByIdAndUpdate(newAdminId, {
-      $addToSet: { ownedShelters: id },
-      $pull: { joinedShelters: id }, // Si ya estaba como voluntario
+      $addToSet: { ownedShelters: shelterId },
+      $pull: { joinedShelters: shelterId }, // Si ya estaba como voluntario
     });
 
     res.json(updatedShelter);
@@ -448,28 +422,16 @@ router.post("/:id/admins/:userId", isAuthenticated, async (req, res) => {
 });
 
 // Ruta para quitar un administrador (solo administradores)
-router.delete("/:id/admins/:userId", isAuthenticated, async (req, res) => {
-  const { id, userId: adminToRemoveId } = req.params;
+router.delete("/:id/admins/:userId", isAuthenticated, loadShelter, getShelterContext, requireShelterAdmin, async (req, res) => {
+  const shelterId = req.shelter.id;
+  const { userId: adminToRemoveId } = req.params;
   const requestingUserId = req.payload._id;
 
   try {
-    // Verificar si la protectora existe
-    const shelter = await Shelter.findById(id);
-    if (!shelter) {
-      return res.status(404).json({ message: "Protectora no encontrada" });
-    }
-
-    // Verificar si el usuario que hace la solicitud es administrador
-    if (!shelter.admins.includes(requestingUserId)) {
-      return res
-        .status(403)
-        .json({ message: "No tienes permisos para quitar administradores" });
-    }
-
     // No se puede quitar a uno mismo si es el único administrador
     if (
       adminToRemoveId === requestingUserId.toString() &&
-      shelter.admins.length === 1
+      req.shelter.data.admins.length === 1
     ) {
       return res
         .status(400)
@@ -479,7 +441,7 @@ router.delete("/:id/admins/:userId", isAuthenticated, async (req, res) => {
     }
 
     // Verificar si el usuario a quitar es administrador
-    if (!shelter.admins.includes(adminToRemoveId)) {
+    if (!req.shelter.data.admins.includes(adminToRemoveId)) {
       return res
         .status(400)
         .json({ message: "El usuario no es administrador de esta protectora" });
@@ -487,7 +449,7 @@ router.delete("/:id/admins/:userId", isAuthenticated, async (req, res) => {
 
     // Quitar el usuario como administrador
     const updatedShelter = await Shelter.findByIdAndUpdate(
-      id,
+      shelterId,
       { $pull: { admins: adminToRemoveId } },
       { new: true }
     )
@@ -496,7 +458,7 @@ router.delete("/:id/admins/:userId", isAuthenticated, async (req, res) => {
 
     // Quitar la referencia de la protectora en el usuario
     await User.findByIdAndUpdate(adminToRemoveId, {
-      $pull: { ownedShelters: id },
+      $pull: { ownedShelters: shelterId },
     });
 
     res.json(updatedShelter);
@@ -544,27 +506,13 @@ router.get("/:id", async (req, res) => {
 });
 
 // Ruta para actualizar una protectora (solo administradores)
-router.put("/:id", isAuthenticated, async (req, res) => {
+router.put("/:id", isAuthenticated, loadShelter, getShelterContext, requireShelterAdmin, async (req, res) => {
   const { id } = req.params;
-  const userId = req.payload._id;
-  const { name, handle, bio, imageUrl, location, contact, socialMedia } =
-    req.body;
+  const { name, handle, bio, imageUrl, location, contact, socialMedia } = req.body;
 
   try {
-    // Verificar si el usuario es administrador de esta protectora
-    const shelter = await Shelter.findById(id);
-    if (!shelter) {
-      return res.status(404).json({ message: "Protectora no encontrada" });
-    }
-
-    if (!shelter.admins.includes(userId)) {
-      return res
-        .status(403)
-        .json({ message: "No tienes permisos para editar esta protectora" });
-    }
-
     // Verificar si el nuevo handle ya existe (solo si se está cambiando)
-    if (handle !== shelter.handle) {
+    if (handle !== req.shelter.data.handle) {
       const existingHandle = await Shelter.findOne({ handle });
       if (existingHandle) {
         return res
@@ -603,23 +551,11 @@ router.put("/:id", isAuthenticated, async (req, res) => {
 });
 
 // Ruta para eliminar una protectora (solo administradores)
-router.delete("/:id", isAuthenticated, async (req, res) => {
+router.delete("/:id", isAuthenticated, loadShelter, getShelterContext, requireShelterAdmin, async (req, res) => {
   const { id } = req.params;
-  const userId = req.payload._id;
+  const shelter = req.shelter.data;
 
   try {
-    // Verificar si el usuario es administrador de esta protectora
-    const shelter = await Shelter.findById(id);
-    if (!shelter) {
-      return res.status(404).json({ message: "Protectora no encontrada" });
-    }
-
-    if (!shelter.admins.includes(userId)) {
-      return res
-        .status(403)
-        .json({ message: "No tienes permisos para eliminar esta protectora" });
-    }
-
     // 1. Eliminar todas las tareas asociadas a la protectora
     if (shelter.tasks && shelter.tasks.length > 0) {
       await Task.deleteMany({ _id: { $in: shelter.tasks } });

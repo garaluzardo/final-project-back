@@ -3,7 +3,12 @@ const router = express.Router();
 const Animal = require("../models/Animal.model");
 const Shelter = require("../models/Shelter.model");
 const { isAuthenticated } = require("../middleware/jwt.middleware");
-const { isShelterAdmin } = require("../middleware/permissions.middleware");
+const { 
+  getShelterContext, 
+  requireShelterAdmin,
+  loadAnimal,
+  isShelterAdmin  // Middleware compuesto para mantener compatibilidad
+} = require("../middleware/permissions.middleware");
 
 //==============================================================================
 // RUTAS PÚBLICAS (No requieren autenticación)
@@ -103,10 +108,10 @@ router.get("/shelter/:shelterId", async (req, res) => {
 
 // POST /api/animals/shelter/:shelterId - Crear un nuevo animal en una protectora
 // Solo administradores de la protectora pueden crear animales
-router.post("/shelter/:shelterId", isAuthenticated, isShelterAdmin, async (req, res) => {
+router.post("/shelter/:shelterId", isAuthenticated, getShelterContext, requireShelterAdmin, async (req, res) => {
   try {
-    // El middleware isShelterAdmin ya verificó permisos y añadió req.shelterId
-    const shelterId = req.params.shelterId;
+    // El middleware ya verificó permisos y añadió req.shelter.id
+    const shelterId = req.shelter.id;
     const userId = req.payload._id;
     
     // Crear el nuevo animal
@@ -132,9 +137,11 @@ router.post("/shelter/:shelterId", isAuthenticated, isShelterAdmin, async (req, 
   }
 });
 
+// El middleware loadAnimal ahora se importa desde permissions.middleware.js
+
 // PUT /api/animals/:id - Actualizar todos los campos de un animal
 // Solo administradores de la protectora pueden editar
-router.put("/:id", isAuthenticated, isShelterAdmin, async (req, res) => {
+router.put("/:id", isAuthenticated, loadAnimal, getShelterContext, requireShelterAdmin, async (req, res) => {
   try {
     // Evitar modificar el shelter y createdBy
     const { shelter, createdBy, ...updateData } = req.body;
@@ -160,7 +167,7 @@ router.put("/:id", isAuthenticated, isShelterAdmin, async (req, res) => {
 
 // PATCH /api/animals/:id - Actualizar campos específicos de un animal
 // Solo administradores de la protectora pueden editar
-router.patch("/:id", isAuthenticated, isShelterAdmin, async (req, res) => {
+router.patch("/:id", isAuthenticated, loadAnimal, getShelterContext, requireShelterAdmin, async (req, res) => {
   try {
     // Evitar modificar el shelter y createdBy
     const { shelter, createdBy, ...updateData } = req.body;
@@ -186,7 +193,7 @@ router.patch("/:id", isAuthenticated, isShelterAdmin, async (req, res) => {
 
 // PATCH /api/animals/:id/status - Actualizar solo el estado de un animal
 // Solo administradores de la protectora pueden cambiar el estado
-router.patch("/:id/status", isAuthenticated, isShelterAdmin, async (req, res) => {
+router.patch("/:id/status", isAuthenticated, loadAnimal, getShelterContext, requireShelterAdmin, async (req, res) => {
   try {
     const { status } = req.body;
     
@@ -220,13 +227,9 @@ router.patch("/:id/status", isAuthenticated, isShelterAdmin, async (req, res) =>
 
 // DELETE /api/animals/:id - Eliminar un animal
 // Solo administradores de la protectora pueden eliminar
-router.delete("/:id", isAuthenticated, isShelterAdmin, async (req, res) => {
+router.delete("/:id", isAuthenticated, loadAnimal, getShelterContext, requireShelterAdmin, async (req, res) => {
   try {
-    const animal = await Animal.findById(req.params.id);
-    
-    if (!animal) {
-      return res.status(404).json({ message: "Animal no encontrado" });
-    }
+    const animal = req.animal;
     
     // Eliminar la referencia del animal en la protectora
     await Shelter.findByIdAndUpdate(animal.shelter, {
