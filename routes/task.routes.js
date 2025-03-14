@@ -233,4 +233,36 @@ router.delete("/:id", isAuthenticated, loadTask, getShelterContext, requireShelt
   }
 });
 
+// En task.routes.js, crea una ruta temporal para toggle-complete
+router.patch("/:id/toggle-complete-bypass", isAuthenticated, loadTask, async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ message: "Tarea no encontrada" });
+    }
+    
+    // Sin verificación de permisos
+    task.completed = !task.completed;
+    
+    if (task.completed) {
+      task.completedAt = new Date();
+      task.completedBy = req.payload._id;
+    } else {
+      task.completedAt = undefined;
+      task.completedBy = undefined;
+    }
+    
+    await task.save();
+    
+    // Poblar los datos del usuario completado
+    await task.populate('completedBy', 'name handle');
+    
+    console.log("✅ Bypass: Tarea actualizada sin verificación de permisos");
+    res.json(task);
+  } catch (error) {
+    console.error("❌ Error en toggle-complete-bypass:", error);
+    res.status(500).json({ message: "Error al actualizar la tarea", error: error.message });
+  }
+});
+
 module.exports = router;

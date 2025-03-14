@@ -58,8 +58,8 @@ const getShelterContext = async (req, res, next) => {
     }
     
     // Determinar los permisos del usuario
-    const isAdmin = shelter.admins.includes(userId);
-    const isVolunteer = shelter.volunteers.includes(userId);
+const isAdmin = shelter.admins.some(adminId => adminId.toString() === userId.toString());
+const isVolunteer = shelter.volunteers.some(volId => volId.toString() === userId.toString());
     
     // Guardar toda la información en req
     req.shelter = {
@@ -68,7 +68,7 @@ const getShelterContext = async (req, res, next) => {
       permissions: {
         isAdmin,
         isVolunteer,
-        isMember: isVolunteer // Todos los miembros son voluntarios
+        isMember: isVolunteer || isAdmin// Todos los miembros son voluntarios
       }
     };
     
@@ -77,7 +77,7 @@ const getShelterContext = async (req, res, next) => {
     req.shelterPermissions = {
       isAdmin,
       isVolunteer,
-      isMember: isVolunteer
+      isMember: isVolunteer || isAdmin
     };
     
     next();
