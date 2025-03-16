@@ -58,7 +58,7 @@ router.post("/", isAuthenticated, async (req, res) => {
         .json({ message: "El handle ya está en uso. Por favor, elige otro." });
     }
 
-    // Crear la protectora con el usuario actual como administrador
+    // Crear la protectora con el usuario actual como administrador y voluntario
     const shelterData = {
       name,
       handle,
@@ -68,7 +68,7 @@ router.post("/", isAuthenticated, async (req, res) => {
       contact,
       socialMedia,
       admins: [userId],
-      volunteers: [],
+      volunteers: [userId],
       animals: [],
       tasks: [],
     };
