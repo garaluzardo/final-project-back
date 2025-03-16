@@ -394,23 +394,18 @@ router.post("/:id/admins/:userId", isAuthenticated, loadShelter, getShelterConte
         .json({ message: "El usuario ya es administrador" });
     }
 
-    // Si el usuario es voluntario, quitarlo de esa lista
-    let update = { $push: { admins: newAdminId } };
-    if (req.shelter.data.volunteers.includes(newAdminId)) {
-      update.$pull = { volunteers: newAdminId };
-    }
-
-    // Añadir el usuario como administrador
-    const updatedShelter = await Shelter.findByIdAndUpdate(shelterId, update, {
-      new: true,
-    })
+    // Añadir el usuario como administrador (sin quitarlo de voluntarios)
+    const updatedShelter = await Shelter.findByIdAndUpdate(
+      shelterId,
+      { $push: { admins: newAdminId } },
+      { new: true }
+    )
       .populate("admins", "name username imageUrl")
       .populate("volunteers", "name username imageUrl");
 
     // Actualizar referencias en el usuario
     await User.findByIdAndUpdate(newAdminId, {
-      $addToSet: { ownedShelters: shelterId },
-      $pull: { joinedShelters: shelterId }, // Si ya estaba como voluntario
+      $addToSet: { ownedShelters: shelterId }
     });
 
     res.json(updatedShelter);
