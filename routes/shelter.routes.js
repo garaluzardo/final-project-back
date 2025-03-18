@@ -19,8 +19,8 @@ const {
 router.get("/", async (req, res) => {
   try {
     const shelters = await Shelter.find()
-      .populate("admins", "name username imageUrl")
-      .populate("volunteers", "name username imageUrl")
+      .populate("admins", "name handle imageUrl")
+      .populate("volunteers", "name handle imageUrl")
       .populate("animals")
       .sort({ createdAt: -1 }); // Ordenar por fecha de creación (más recientes primero)
 
@@ -84,7 +84,7 @@ router.post("/", isAuthenticated, async (req, res) => {
     // Obtener la protectora con sus relaciones pobladas
     const populatedShelter = await Shelter.findById(newShelter._id).populate(
       "admins",
-      "name username imageUrl"
+      "name handle imageUrl"
     );
 
     res.status(201).json(populatedShelter);
@@ -161,14 +161,14 @@ router.get("/handle/:handle", async (req, res) => {
 
   try {
     const shelter = await Shelter.findOne({ handle })
-      .populate("admins", "name username imageUrl")
-      .populate("volunteers", "name username imageUrl")
+      .populate("admins", "name handle imageUrl")
+      .populate("volunteers", "name handle imageUrl")
       .populate("animals")
       .populate({
         path: "tasks",
         populate: {
           path: "completedBy",
-          select: "name username imageUrl",
+          select: "name handle imageUrl",
         },
       });
 
@@ -200,7 +200,7 @@ router.get("/:id/tasks", async (req, res) => {
       path: "tasks",
       populate: {
         path: "completedBy",
-        select: "name username imageUrl",
+        select: "name handle imageUrl",
       },
     });
 
@@ -242,7 +242,7 @@ router.get("/:id/admins", async (req, res) => {
   try {
     const shelter = await Shelter.findById(id).populate(
       "admins",
-      "name username imageUrl"
+      "name handle imageUrl"
     );
 
     if (!shelter) {
@@ -267,7 +267,7 @@ router.get("/:id/volunteers", async (req, res) => {
   try {
     const shelter = await Shelter.findById(id).populate(
       "volunteers",
-      "name username imageUrl"
+      "name handle imageUrl"
     );
 
     if (!shelter) {
@@ -311,8 +311,8 @@ router.post("/:id/join", isAuthenticated, loadShelter, async (req, res) => {
       { $push: { volunteers: userId } },
       { new: true }
     )
-      .populate("admins", "name username imageUrl")
-      .populate("volunteers", "name username imageUrl");
+      .populate("admins", "name handle imageUrl")
+      .populate("volunteers", "name handle imageUrl");
 
     // Añadir la referencia de la protectora al usuario
     await User.findByIdAndUpdate(userId, { $push: { joinedShelters: shelterId } });
@@ -358,8 +358,8 @@ router.post("/:id/leave", isAuthenticated, loadShelter, async (req, res) => {
       { $pull: { volunteers: userId } },
       { new: true }
     )
-      .populate("admins", "name username imageUrl")
-      .populate("volunteers", "name username imageUrl");
+      .populate("admins", "name handle imageUrl")
+      .populate("volunteers", "name handle imageUrl");
 
     // Eliminar la referencia de la protectora del usuario
     await User.findByIdAndUpdate(userId, { $pull: { joinedShelters: shelterId } });
@@ -400,8 +400,8 @@ router.post("/:id/admins/:userId", isAuthenticated, loadShelter, getShelterConte
       { $push: { admins: newAdminId } },
       { new: true }
     )
-      .populate("admins", "name username imageUrl")
-      .populate("volunteers", "name username imageUrl");
+      .populate("admins", "name  imageUrl")
+      .populate("volunteers", "name handle imageUrl");
 
     // Actualizar referencias en el usuario
     await User.findByIdAndUpdate(newAdminId, {
@@ -448,8 +448,8 @@ router.delete("/:id/admins/:userId", isAuthenticated, loadShelter, getShelterCon
       { $pull: { admins: adminToRemoveId } },
       { new: true }
     )
-      .populate("admins", "name username imageUrl")
-      .populate("volunteers", "name username imageUrl");
+      .populate("admins", "name handle imageUrl")
+      .populate("volunteers", "name handle imageUrl");
 
     // Quitar la referencia de la protectora en el usuario
     await User.findByIdAndUpdate(adminToRemoveId, {
@@ -474,14 +474,14 @@ router.get("/:id", async (req, res) => {
 
   try {
     const shelter = await Shelter.findById(id)
-      .populate("admins", "name username imageUrl")
-      .populate("volunteers", "name username imageUrl")
+      .populate("admins", "name handle imageUrl")
+      .populate("volunteers", "name handle imageUrl")
       .populate("animals")
       .populate({
         path: "tasks",
         populate: {
           path: "completedBy",
-          select: "name username imageUrl",
+          select: "name handle imageUrl",
         },
       });
 
@@ -531,8 +531,8 @@ router.put("/:id", isAuthenticated, loadShelter, getShelterContext, requireShelt
       },
       { new: true }
     )
-      .populate("admins", "name username imageUrl")
-      .populate("volunteers", "name username imageUrl");
+      .populate("admins", "name handle imageUrl")
+      .populate("volunteers", "name handle imageUrl");
 
     res.status(200).json(updatedShelter);
   } catch (error) {
