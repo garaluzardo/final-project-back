@@ -11,21 +11,29 @@ const getShelterContext = async (req, res, next) => {
     // Obtener el ID del usuario desde el token JWT
     const userId = req.payload._id;
     if (!userId) {
-      return res.status(400).json({ message: "ID de usuario no encontrado en el token" });
+      return res
+        .status(400)
+        .json({ message: "ID de usuario no encontrado en el token" });
     }
-    
+
     let shelterId;
-    
+
     // Caso 1: El ID de la protectora viene directamente en la URL
     if (req.params.shelterId) {
       shelterId = req.params.shelterId;
-    } 
+    }
+    
+    // o el ID viene como 'id' (usado en rutas PUT/DELETE)
+    else if (req.params.id) {
+      shelterId = req.params.id;
+    }
+
     // Caso 2: El ID de la protectora viene de una tarea previamente cargada
     else if (req.task && req.task.shelter) {
       shelterId = req.task.shelter;
     }
     // Caso 3: La solicitud está relacionada con una tarea por ID
-    else if (req.params.id && !req.task && req.baseUrl.includes('/tasks')) {
+    else if (req.params.id && !req.task && req.baseUrl.includes("/tasks")) {
       const task = await Task.findById(req.params.id);
       if (!task) {
         return res.status(404).json({ message: "Tarea no encontrada" });
@@ -34,7 +42,7 @@ const getShelterContext = async (req, res, next) => {
       req.task = task; // Guardar la tarea para no buscarla de nuevo
     }
     // Caso 4: La solicitud está relacionada con un animal por ID
-    else if (req.params.id && !req.animal && req.baseUrl.includes('/animals')) {
+    else if (req.params.id && !req.animal && req.baseUrl.includes("/animals")) {
       const animal = await Animal.findById(req.params.id);
       if (!animal) {
         return res.status(404).json({ message: "Animal no encontrado" });
@@ -46,21 +54,27 @@ const getShelterContext = async (req, res, next) => {
     else if (req.body.shelter) {
       shelterId = req.body.shelter;
     }
-    
+
     if (!shelterId) {
-      return res.status(400).json({ message: "No se pudo determinar la protectora" });
+      return res
+        .status(400)
+        .json({ message: "No se pudo determinar la protectora" });
     }
-    
+
     // Verificar si la protectora existe
     const shelter = await Shelter.findById(shelterId);
     if (!shelter) {
       return res.status(404).json({ message: "Protectora no encontrada" });
     }
-    
+
     // Determinar los permisos del usuario
-const isAdmin = shelter.admins.some(adminId => adminId.toString() === userId.toString());
-const isVolunteer = shelter.volunteers.some(volId => volId.toString() === userId.toString());
-    
+    const isAdmin = shelter.admins.some(
+      (adminId) => adminId.toString() === userId.toString()
+    );
+    const isVolunteer = shelter.volunteers.some(
+      (volId) => volId.toString() === userId.toString()
+    );
+
     // Guardar toda la información en req
     req.shelter = {
       id: shelterId,
@@ -68,23 +82,23 @@ const isVolunteer = shelter.volunteers.some(volId => volId.toString() === userId
       permissions: {
         isAdmin,
         isVolunteer,
-        isMember: isVolunteer || isAdmin// Todos los miembros son voluntarios
-      }
+        isMember: isVolunteer || isAdmin, // Todos los miembros son voluntarios
+      },
     };
-    
+
     // Para mantener compatibilidad con código existente
-    req.shelterId = shelterId; 
+    req.shelterId = shelterId;
     req.shelterPermissions = {
       isAdmin,
       isVolunteer,
-      isMember: isVolunteer || isAdmin
+      isMember: isVolunteer || isAdmin,
     };
-    
+
     next();
   } catch (error) {
-    return res.status(500).json({ 
-      message: "Error al verificar permisos", 
-      error: error.message 
+    return res.status(500).json({
+      message: "Error al verificar permisos",
+      error: error.message,
     });
   }
 };
@@ -95,8 +109,8 @@ const isVolunteer = shelter.volunteers.some(volId => volId.toString() === userId
  */
 const requireShelterMember = (req, res, next) => {
   if (!req.shelter || !req.shelter.permissions.isVolunteer) {
-    return res.status(403).json({ 
-      message: "No eres miembro de esta protectora" 
+    return res.status(403).json({
+      message: "No eres miembro de esta protectora",
     });
   }
   next();
@@ -108,8 +122,8 @@ const requireShelterMember = (req, res, next) => {
  */
 const requireShelterAdmin = (req, res, next) => {
   if (!req.shelter || !req.shelter.permissions.isAdmin) {
-    return res.status(403).json({ 
-      message: "No tienes permisos de administrador en esta protectora" 
+    return res.status(403).json({
+      message: "No tienes permisos de administrador en esta protectora",
     });
   }
   next();
@@ -135,19 +149,19 @@ const loadTask = async (req, res, next) => {
   try {
     const taskId = req.params.id;
     const task = await Task.findById(taskId);
-    
+
     if (!task) {
       return res.status(404).json({ message: "Tarea no encontrada" });
     }
-    
+
     req.task = task;
     req.shelterId = task.shelter;
-    
+
     next();
   } catch (error) {
-    return res.status(500).json({ 
-      message: "Error cargando la tarea", 
-      error: error.message 
+    return res.status(500).json({
+      message: "Error cargando la tarea",
+      error: error.message,
     });
   }
 };
@@ -160,19 +174,19 @@ const loadAnimal = async (req, res, next) => {
   try {
     const animalId = req.params.id;
     const animal = await Animal.findById(animalId);
-    
+
     if (!animal) {
       return res.status(404).json({ message: "Animal no encontrado" });
     }
-    
+
     req.animal = animal;
     req.shelterId = animal.shelter;
-    
+
     next();
   } catch (error) {
-    return res.status(500).json({ 
-      message: "Error cargando el animal", 
-      error: error.message 
+    return res.status(500).json({
+      message: "Error cargando el animal",
+      error: error.message,
     });
   }
 };
@@ -185,22 +199,22 @@ const loadShelter = async (req, res, next) => {
   try {
     const shelterId = req.params.id;
     const shelter = await Shelter.findById(shelterId);
-    
+
     if (!shelter) {
       return res.status(404).json({ message: "Protectora no encontrada" });
     }
-    
+
     req.shelter = {
       data: shelter,
-      id: shelter._id
+      id: shelter._id,
     };
     req.shelterId = shelter._id;
-    
+
     next();
   } catch (error) {
-    return res.status(500).json({ 
-      message: "Error cargando la protectora", 
-      error: error.message 
+    return res.status(500).json({
+      message: "Error cargando la protectora",
+      error: error.message,
     });
   }
 };
@@ -213,8 +227,8 @@ module.exports = {
   loadTask,
   loadAnimal,
   loadShelter,
-  
+
   // Middlewares compuestos (para compatibilidad con código existente)
   isShelterMember,
-  isShelterAdmin
+  isShelterAdmin,
 };

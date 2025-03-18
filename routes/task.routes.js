@@ -77,16 +77,27 @@ router.get("/:id", async (req, res) => {
 router.patch("/:id/toggle-complete", isAuthenticated, loadTask, getShelterContext, requireShelterMember, async (req, res) => {
   try {
     const task = req.task;
+    const userId = req.payload._id;
     
     // Invertir el estado de completado
     task.completed = !task.completed;
     
     if (task.completed) {
       task.completedAt = new Date();
-      task.completedBy = req.payload._id;
+      task.completedBy = userId;
+      
+      // Actualizar el array completedTasks del usuario
+      await User.findByIdAndUpdate(userId, {
+        $addToSet: { completedTasks: task._id }
+      });
     } else {
       task.completedAt = undefined;
       task.completedBy = undefined;
+      
+      // Eliminar la tarea del array completedTasks del usuario
+      await User.findByIdAndUpdate(userId, {
+        $pull: { completedTasks: task._id }
+      });
     }
     
     await task.save();
@@ -233,7 +244,7 @@ router.delete("/:id", isAuthenticated, loadTask, getShelterContext, requireShelt
   }
 });
 
-// En task.routes.js, crea una ruta temporal para toggle-complete
+// Ruta temporal para toggle-complete
 router.patch("/:id/toggle-complete-bypass", isAuthenticated, loadTask, async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
